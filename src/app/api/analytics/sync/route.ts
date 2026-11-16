@@ -95,7 +95,7 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     console.error("Analytics sync error:", error);
     return NextResponse.json(
-      { success: false, error: "Server error during sync" },
+      { success: false, error: (error as Error)?.message || "Server error during sync" },
       { status: 500, headers: corsHeaders }
     );
   }

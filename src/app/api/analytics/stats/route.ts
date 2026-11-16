@@ -94,6 +94,9 @@ export async function GET(req: NextRequest) {
     });
   } catch (error) {
     console.error("GET stats error:", error);
-    return NextResponse.json({ success: false, error: "Server error" }, { status: 500 });
+    return NextResponse.json(
+      { success: false, error: (error as Error)?.message || "Server error" },
+      { status: 500 }
+    );
   }
 }
