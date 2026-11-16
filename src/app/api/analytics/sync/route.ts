@@ -28,6 +28,22 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Determine domain / subdomain
+    let targetDomain = body.domain || body.site || body.hostname;
+    if (!targetDomain) {
+      const origin = req.headers.get("origin") || req.headers.get("referer");
+      if (origin) {
+        try {
+          targetDomain = new URL(origin).hostname.replace(/^www\./, "");
+        } catch {
+          // silent fallback
+        }
+      }
+    }
+    if (!targetDomain) {
+      targetDomain = "gksky.in";
+    }
+
     // Extract client IP address
     const forwarded = req.headers.get("x-forwarded-for");
     const realIp = req.headers.get("x-real-ip");
@@ -46,6 +62,7 @@ export async function POST(req: NextRequest) {
       {
         $set: {
           deviceId,
+          domain: targetDomain,
           userAgent: ua,
           deviceType,
           os,
@@ -72,7 +89,7 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json(
-      { success: true, message: "Sync complete" },
+      { success: true, message: "Sync complete", domain: targetDomain },
       { status: 200, headers: corsHeaders }
     );
   } catch (error) {

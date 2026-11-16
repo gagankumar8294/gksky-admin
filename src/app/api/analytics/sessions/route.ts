@@ -20,6 +20,7 @@ export async function GET(req: NextRequest) {
     const skip = (page - 1) * limit;
     const date = searchParams.get("date"); // YYYY-MM-DD
     const deviceType = searchParams.get("deviceType");
+    const domain = searchParams.get("domain");
     const sessionId = searchParams.get("sessionId");
     const search = searchParams.get("search");
 
@@ -28,6 +29,10 @@ export async function GET(req: NextRequest) {
 
     if (sessionId) {
       query.sessionId = sessionId;
+    }
+
+    if (domain && domain !== "all") {
+      query.domain = domain;
     }
 
     if (deviceType && deviceType !== "all") {
@@ -45,6 +50,7 @@ export async function GET(req: NextRequest) {
       query.$or = [
         { sessionId: { $regex: search, $options: "i" } },
         { deviceId: { $regex: search, $options: "i" } },
+        { domain: { $regex: search, $options: "i" } },
         { ip: { $regex: search, $options: "i" } },
         { browser: { $regex: search, $options: "i" } },
         { os: { $regex: search, $options: "i" } },
@@ -55,14 +61,16 @@ export async function GET(req: NextRequest) {
     // Otherwise sort newest sessions first
     const sortField = date ? "createdAt" : "-updatedAt";
 
-    const [sessions, total] = await Promise.all([
+    const [sessions, total, availableDomains] = await Promise.all([
       SessionFlow.find(query).sort(sortField).skip(skip).limit(limit).lean(),
       SessionFlow.countDocuments(query),
+      SessionFlow.distinct("domain"),
     ]);
 
     return NextResponse.json({
       success: true,
       sessions,
+      availableDomains: availableDomains.filter(Boolean),
       pagination: {
         page,
         limit,

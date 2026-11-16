@@ -7,6 +7,7 @@ export async function GET(req: NextRequest) {
     const authHeader = req.headers.get("x-admin-authorization");
     const { searchParams } = new URL(req.url);
     const authQuery = searchParams.get("auth");
+    const domain = searchParams.get("domain");
     const adminPassword = process.env.ADMIN_PASSWORD || "romeoPistol";
 
     if (authHeader !== adminPassword && authQuery !== adminPassword) {
@@ -19,22 +20,33 @@ export async function GET(req: NextRequest) {
     const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000);
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const filterQuery: any = {};
+    if (domain && domain !== "all") {
+      filterQuery.domain = domain;
+    }
+
     const [
       activeNowCount,
       totalSessions,
       todaySessions,
       uniqueDevices,
       deviceBreakdown,
+      domainBreakdown,
       allSessions,
     ] = await Promise.all([
-      SessionFlow.countDocuments({ updatedAt: { $gte: fiveMinutesAgo } }),
-      SessionFlow.countDocuments({}),
-      SessionFlow.countDocuments({ createdAt: { $gte: startOfToday } }),
-      SessionFlow.distinct("deviceId"),
+      SessionFlow.countDocuments({ ...filterQuery, updatedAt: { $gte: fiveMinutesAgo } }),
+      SessionFlow.countDocuments(filterQuery),
+      SessionFlow.countDocuments({ ...filterQuery, createdAt: { $gte: startOfToday } }),
+      SessionFlow.distinct("deviceId", filterQuery),
       SessionFlow.aggregate([
+        { $match: filterQuery },
         { $group: { _id: "$deviceType", count: { $sum: 1 } } },
       ]),
-      SessionFlow.find({}, { totalDuration: 1, events: 1 }).lean(),
+      SessionFlow.aggregate([
+        { $group: { _id: "$domain", count: { $sum: 1 } } },
+      ]),
+      SessionFlow.find(filterQuery, { totalDuration: 1, events: 1 }).lean(),
     ]);
 
     // Calculate averages & click metrics
@@ -71,6 +83,7 @@ export async function GET(req: NextRequest) {
         uniqueVisitors: uniqueDevices.length,
         avgDuration, // in seconds
         deviceBreakdown,
+        domainBreakdown,
         conversions: {
           telegramClicks,
           emailClicks,

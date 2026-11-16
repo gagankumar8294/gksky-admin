@@ -22,6 +22,7 @@ import {
   Globe,
   Zap,
   X,
+  Layers,
 } from "lucide-react";
 
 interface IEvent {
@@ -37,6 +38,7 @@ interface ISession {
   _id: string;
   sessionId: string;
   deviceId: string;
+  domain?: string;
   userAgent?: string;
   ip?: string;
   deviceType?: "mobile" | "desktop" | "tablet";
@@ -57,6 +59,7 @@ interface IStats {
   uniqueVisitors: number;
   avgDuration: number;
   deviceBreakdown: { _id: string; count: number }[];
+  domainBreakdown?: { _id: string; count: number }[];
   conversions: {
     telegramClicks: number;
     emailClicks: number;
@@ -68,7 +71,9 @@ interface IStats {
 // Web Audio API Chime for New Live Visitor
 const playVisitorChime = () => {
   try {
-    const AudioContextClass = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    const AudioContextClass =
+      window.AudioContext ||
+      (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
     if (!AudioContextClass) return;
     const ctx = new AudioContextClass();
 
@@ -117,6 +122,8 @@ export default function AdminPortal() {
 
   // Analytics states
   const [sessions, setSessions] = useState<ISession[]>([]);
+  const [availableDomains, setAvailableDomains] = useState<string[]>([]);
+  const [selectedDomain, setSelectedDomain] = useState<string>("all");
   const [stats, setStats] = useState<IStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedSession, setSelectedSession] = useState<ISession | null>(null);
@@ -142,7 +149,8 @@ export default function AdminPortal() {
       const ymd = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
         d.getDate()
       ).padStart(2, "0")}`;
-      const dayName = i === 0 ? "Today" : i === 1 ? "Yesterday" : d.toLocaleDateString("en-US", { weekday: "short" });
+      const dayName =
+        i === 0 ? "Today" : i === 1 ? "Yesterday" : d.toLocaleDateString("en-US", { weekday: "short" });
       const dayNum = d.getDate();
       const monthName = d.toLocaleDateString("en-US", { month: "short" });
       list.push({ ymd, dayName, dayNum, monthName, isToday: i === 0 });
@@ -190,8 +198,11 @@ export default function AdminPortal() {
     try {
       const headers = { "x-admin-authorization": token };
 
-      // 1. Fetch Stats
-      const statsRes = await fetch("/api/analytics/stats", { headers });
+      // 1. Fetch Stats (filtered by domain if set)
+      const statsParams = new URLSearchParams();
+      if (selectedDomain !== "all") statsParams.append("domain", selectedDomain);
+
+      const statsRes = await fetch(`/api/analytics/stats?${statsParams.toString()}`, { headers });
       const statsData = await statsRes.json();
       if (statsData.success) {
         setStats(statsData.stats);
@@ -202,6 +213,7 @@ export default function AdminPortal() {
         page: page.toString(),
         limit: "25",
       });
+      if (selectedDomain !== "all") params.append("domain", selectedDomain);
       if (selectedDate) params.append("date", selectedDate);
       if (deviceFilter !== "all") params.append("deviceType", deviceFilter);
       if (searchTerm) params.append("search", searchTerm);
@@ -210,6 +222,11 @@ export default function AdminPortal() {
       const sessData = await sessRes.json();
       if (sessData.success) {
         setSessions(sessData.sessions || []);
+        if (sessData.availableDomains && Array.isArray(sessData.availableDomains)) {
+          // Merge unique domains with gksky.in
+          const domains = Array.from(new Set(["gksky.in", ...sessData.availableDomains]));
+          setAvailableDomains(domains);
+        }
         setTotalPages(sessData.pagination?.pages || 1);
         setTotalRecords(sessData.pagination?.total || 0);
 
@@ -228,7 +245,7 @@ export default function AdminPortal() {
     } finally {
       setLoading(false);
     }
-  }, [page, selectedDate, deviceFilter, searchTerm, soundEnabled]);
+  }, [page, selectedDomain, selectedDate, deviceFilter, searchTerm, soundEnabled]);
 
   // Initial load & filter change (deferred to avoid synchronous render warning)
   useEffect(() => {
@@ -277,7 +294,7 @@ export default function AdminPortal() {
       <div className="min-h-screen bg-[#07090e] text-[#f1f5f9] flex flex-col items-center justify-center p-6 selection:bg-indigo-600 selection:text-white">
         <div className="w-full max-w-md p-8 rounded-3xl bg-[#0f1422] border border-white/10 shadow-2xl relative overflow-hidden">
           <div className="absolute top-0 left-1/2 -translate-x-1/2 w-48 h-1 bg-gradient-to-r from-transparent via-indigo-500 to-transparent" />
-          
+
           <div className="flex flex-col items-center text-center space-y-4 mb-8">
             <div className="w-14 h-14 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 shadow-inner">
               <Lock className="w-7 h-7" />
@@ -285,16 +302,14 @@ export default function AdminPortal() {
             <div>
               <h1 className="text-2xl font-bold tracking-tight text-white">GK Sky Admin</h1>
               <p className="text-xs text-gray-400 mt-1">
-                Enter your admin password to view live visitor journeys &amp; analytics
+                Enter your admin password to view live visitor journeys &amp; multi-domain analytics
               </p>
             </div>
           </div>
 
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
-              <label className="block text-xs font-medium text-gray-300 mb-1.5">
-                Admin Password
-              </label>
+              <label className="block text-xs font-medium text-gray-300 mb-1.5">Admin Password</label>
               <input
                 type="password"
                 value={password}
@@ -321,7 +336,7 @@ export default function AdminPortal() {
           </form>
 
           <div className="mt-8 pt-4 border-t border-white/5 text-center text-xs text-gray-500">
-            GK Sky Analytics &bull; Connected to gksky.in
+            GK Sky Analytics &bull; Connected to cluster0.ajak8zg.mongodb.net
           </div>
         </div>
       </div>
@@ -350,7 +365,13 @@ export default function AdminPortal() {
                   Live Engine
                 </span>
               </div>
-              <p className="text-xs text-gray-400">Tracking gksky.in</p>
+              <p className="text-xs text-gray-400 flex items-center gap-1">
+                <span>Multi-domain tracker</span>
+                <span>&bull;</span>
+                <span className="text-indigo-400">
+                  {selectedDomain === "all" ? "All Domains" : selectedDomain}
+                </span>
+              </p>
             </div>
           </div>
 
@@ -362,7 +383,7 @@ export default function AdminPortal() {
               rel="noopener noreferrer"
               className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-xs text-gray-300 transition-colors"
             >
-              <span>Visit Site</span>
+              <span>Visit gksky.in</span>
               <ExternalLink className="w-3.5 h-3.5 opacity-60" />
             </a>
 
@@ -389,7 +410,10 @@ export default function AdminPortal() {
               }`}
               title="Toggle 10s auto-refresh"
             >
-              <RefreshCw className={`w-3.5 h-3.5 ${autoRefresh ? "animate-spin" : ""}`} style={{ animationDuration: "3s" }} />
+              <RefreshCw
+                className={`w-3.5 h-3.5 ${autoRefresh ? "animate-spin" : ""}`}
+                style={{ animationDuration: "3s" }}
+              />
               <span className="hidden md:inline">{autoRefresh ? "Auto (10s)" : "Paused"}</span>
             </button>
 
@@ -416,6 +440,64 @@ export default function AdminPortal() {
 
       {/* Main Content Area */}
       <main className="max-w-7xl mx-auto px-6 py-8 w-full space-y-8 flex-1">
+        {/* DOMAIN & SUBDOMAIN SELECTOR BAR */}
+        <section className="p-4 rounded-2xl bg-[#0f1422] border border-white/10 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-gray-300">
+            <Layers className="w-4 h-4 text-indigo-400" />
+            <span>Active Domain Filter:</span>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => {
+                setSelectedDomain("all");
+                setPage(1);
+              }}
+              className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-all ${
+                selectedDomain === "all"
+                  ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/25"
+                  : "bg-white/5 hover:bg-white/10 text-gray-300 border border-white/10"
+              }`}
+            >
+              🌐 All Domains &amp; Subdomains
+            </button>
+
+            <button
+              onClick={() => {
+                setSelectedDomain("gksky.in");
+                setPage(1);
+              }}
+              className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-all ${
+                selectedDomain === "gksky.in"
+                  ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/25"
+                  : "bg-white/5 hover:bg-white/10 text-gray-300 border border-white/10"
+              }`}
+            >
+              gksky.in (Main Site)
+            </button>
+
+            {/* Dynamic additional subdomains */}
+            {availableDomains
+              .filter((d) => d !== "gksky.in")
+              .map((dom) => (
+                <button
+                  key={dom}
+                  onClick={() => {
+                    setSelectedDomain(dom);
+                    setPage(1);
+                  }}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-all ${
+                    selectedDomain === dom
+                      ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/25"
+                      : "bg-white/5 hover:bg-white/10 text-gray-300 border border-white/10"
+                  }`}
+                >
+                  {dom}
+                </button>
+              ))}
+          </div>
+        </section>
+
         {/* STATS OVERVIEW CARDS */}
         <section className="grid grid-cols-2 lg:grid-cols-5 gap-4">
           {/* Card 1: Active Now */}
@@ -524,7 +606,11 @@ export default function AdminPortal() {
                   }`}
                 >
                   <span>{day.dayName}</span>
-                  <span className={`text-[10px] px-1.5 py-0.2 rounded-md ${isSelected ? "bg-white/20 text-white" : "bg-white/10 text-gray-400"}`}>
+                  <span
+                    className={`text-[10px] px-1.5 py-0.2 rounded-md ${
+                      isSelected ? "bg-white/20 text-white" : "bg-white/10 text-gray-400"
+                    }`}
+                  >
                     {day.monthName} {day.dayNum}
                   </span>
                 </button>
@@ -590,7 +676,7 @@ export default function AdminPortal() {
             <Search className="w-4 h-4 text-gray-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
             <input
               type="text"
-              placeholder="Search by IP, Device ID, or Session..."
+              placeholder="Search by IP, Domain, Device ID, or Session..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-10 pr-4 py-2 rounded-xl bg-white/5 border border-white/10 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500"
@@ -622,7 +708,7 @@ export default function AdminPortal() {
               <Globe className="w-10 h-10 mx-auto text-gray-600" />
               <h3 className="text-sm font-semibold text-white">No visitor sessions recorded yet</h3>
               <p className="text-xs text-gray-500 max-w-md mx-auto">
-                Once visitors start browsing <span className="text-indigo-400">gksky.in</span>, their live journeys, clicks, and device stats will appear here in real-time.
+                Once visitors start browsing <span className="text-indigo-400">gksky.in</span> or your subdomains, their live journeys, clicks, and device stats will appear here in real-time.
               </p>
             </div>
           ) : (
@@ -656,9 +742,16 @@ export default function AdminPortal() {
                           <span className="font-semibold text-sm text-white">
                             {sess.os || "Unknown OS"} &bull; {sess.browser || "Browser"}
                           </span>
+
+                          {/* Domain / Subdomain Badge */}
+                          <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-indigo-500/15 text-indigo-300 border border-indigo-500/25 font-medium">
+                            {sess.domain || "gksky.in"}
+                          </span>
+
                           <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-white/5 text-gray-400 border border-white/10">
                             IP: {sess.ip || "Direct"}
                           </span>
+
                           {hasClick && (
                             <span className="text-[10px] px-2 py-0.5 rounded bg-amber-500/10 text-amber-300 border border-amber-500/20 font-medium flex items-center gap-1">
                               <MousePointer className="w-3 h-3" />
@@ -691,7 +784,10 @@ export default function AdminPortal() {
                           {eventsCount} {eventsCount === 1 ? "Event" : "Events"}
                         </div>
                         <div className="text-[11px] text-gray-500">
-                          {new Date(sess.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+                          {new Date(sess.createdAt).toLocaleTimeString([], {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
                         </div>
                       </div>
 
@@ -747,11 +843,12 @@ export default function AdminPortal() {
                 <div className="flex items-center gap-2">
                   <h3 className="text-lg font-bold text-white">Visitor Journey Flow</h3>
                   <span className="text-[10px] uppercase font-mono px-2 py-0.5 rounded bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
-                    Session Details
+                    {selectedSession.domain || "gksky.in"}
                   </span>
                 </div>
                 <p className="text-xs text-gray-400 mt-1">
-                  Started at {new Date(selectedSession.createdAt).toLocaleString()} &bull; Duration: {formatDuration(selectedSession.totalDuration)}
+                  Started at {new Date(selectedSession.createdAt).toLocaleString()} &bull; Duration:{" "}
+                  {formatDuration(selectedSession.totalDuration)}
                 </p>
               </div>
 
@@ -766,16 +863,22 @@ export default function AdminPortal() {
             {/* Device & Client Metadata Grid */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
               <div className="p-3 rounded-xl bg-[#090c15] border border-white/5">
+                <span className="text-gray-500 block text-[10px] uppercase">Domain</span>
+                <span className="font-semibold text-indigo-300 truncate block">
+                  {selectedSession.domain || "gksky.in"}
+                </span>
+              </div>
+              <div className="p-3 rounded-xl bg-[#090c15] border border-white/5">
                 <span className="text-gray-500 block text-[10px] uppercase">Device</span>
-                <span className="font-semibold text-white capitalize">{selectedSession.deviceType || "Desktop"}</span>
+                <span className="font-semibold text-white capitalize">
+                  {selectedSession.deviceType || "Desktop"}
+                </span>
               </div>
               <div className="p-3 rounded-xl bg-[#090c15] border border-white/5">
-                <span className="text-gray-500 block text-[10px] uppercase">OS / Platform</span>
-                <span className="font-semibold text-white">{selectedSession.os || "Unknown"}</span>
-              </div>
-              <div className="p-3 rounded-xl bg-[#090c15] border border-white/5">
-                <span className="text-gray-500 block text-[10px] uppercase">Browser</span>
-                <span className="font-semibold text-white">{selectedSession.browser || "Unknown"}</span>
+                <span className="text-gray-500 block text-[10px] uppercase">OS / Browser</span>
+                <span className="font-semibold text-white truncate block">
+                  {selectedSession.os || "OS"} &bull; {selectedSession.browser || "Browser"}
+                </span>
               </div>
               <div className="p-3 rounded-xl bg-[#090c15] border border-white/5">
                 <span className="text-gray-500 block text-[10px] uppercase">Client IP</span>
@@ -827,7 +930,8 @@ export default function AdminPortal() {
 
                           {ev.duration ? (
                             <p className="text-[11px] text-gray-400">
-                              Spent <strong className="text-gray-200">{formatDuration(ev.duration)}</strong> on this section
+                              Spent <strong className="text-gray-200">{formatDuration(ev.duration)}</strong>{" "}
+                              on this section
                             </p>
                           ) : null}
                         </div>
@@ -842,9 +946,7 @@ export default function AdminPortal() {
 
             {/* Modal Footer */}
             <div className="pt-4 border-t border-white/10 flex items-center justify-between text-xs text-gray-400">
-              <span className="font-mono text-[11px]">
-                Session ID: {selectedSession.sessionId}
-              </span>
+              <span className="font-mono text-[11px]">Session ID: {selectedSession.sessionId}</span>
               <button
                 onClick={() => setSelectedSession(null)}
                 className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/15 text-white font-medium"

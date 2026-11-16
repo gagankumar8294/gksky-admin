@@ -12,6 +12,7 @@ export interface IEvent {
 export interface ISessionFlow extends Document {
   sessionId: string;
   deviceId: string;
+  domain: string; // supports multi-domain & subdomains e.g. gksky.in, blog.gksky.in
   userAgent?: string;
   ip?: string;
   deviceType?: "mobile" | "desktop" | "tablet";
@@ -38,6 +39,7 @@ const sessionFlowSchema = new Schema<ISessionFlow>(
   {
     sessionId: { type: String, required: true, unique: true, index: true },
     deviceId: { type: String, required: true, index: true },
+    domain: { type: String, default: "gksky.in", index: true },
     userAgent: { type: String, default: "" },
     ip: { type: String, default: "" },
     deviceType: { type: String, enum: ["mobile", "desktop", "tablet"], default: "desktop" },
@@ -53,6 +55,7 @@ const sessionFlowSchema = new Schema<ISessionFlow>(
 
 sessionFlowSchema.index({ sessionId: 1 });
 sessionFlowSchema.index({ deviceId: 1 });
+sessionFlowSchema.index({ domain: 1 });
 sessionFlowSchema.index({ createdAt: -1 });
 sessionFlowSchema.index({ updatedAt: -1 });
 
