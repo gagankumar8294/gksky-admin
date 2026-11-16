@@ -1,8 +1,8 @@
 @import "tailwindcss";
 
 :root {
-  --background: #0b0f17;
-  --foreground: #f1f5f9;
+  --background: #fbdbc6;
+  --foreground: #1c1815;
 }
 
 @theme inline {
@@ -12,28 +12,34 @@
   --font-mono: var(--font-geist-mono);
 }
 
-body {
-  background-color: #0b0f17;
-  color: #f1f5f9;
-  font-family: var(--font-geist-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  min-height: 100vh;
+* {
+  -webkit-tap-highlight-color: transparent;
 }
 
-/* Custom scrollbars */
+body {
+  background-color: #fbdbc6;
+  color: #1c1815;
+  font-family: var(--font-geist-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  min-height: 100vh;
+  selection-background-color: #1c1815;
+  selection-color: #fbdbc6;
+}
+
+/* Custom scrollbars matching warm peach theme */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
 
 ::-webkit-scrollbar-track {
-  background: rgba(15, 23, 42, 0.6);
+  background: rgba(28, 24, 21, 0.05);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(148, 163, 184, 0.2);
+  background: rgba(28, 24, 21, 0.2);
   border-radius: 9999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(148, 163, 184, 0.4);
+  background: rgba(28, 24, 21, 0.35);
 }
