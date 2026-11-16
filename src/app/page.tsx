@@ -136,7 +136,6 @@ export default function AdminPortal() {
   const [totalRecords, setTotalRecords] = useState(0);
 
   // Settings
-  const [autoRefresh, setAutoRefresh] = useState(true);
   const [soundEnabled, setSoundEnabled] = useState(true);
   const previousSessionCount = useRef(0);
 
@@ -247,7 +246,7 @@ export default function AdminPortal() {
     }
   }, [page, selectedDomain, selectedDate, deviceFilter, searchTerm, soundEnabled]);
 
-  // Initial load & filter change
+  // Initial load & filter change (fetches once on render/filter change, no polling)
   useEffect(() => {
     const timer = setTimeout(() => {
       if (isAuthorized) {
@@ -256,15 +255,6 @@ export default function AdminPortal() {
     }, 10);
     return () => clearTimeout(timer);
   }, [isAuthorized, fetchData]);
-
-  // Auto-refresh interval (every 10 seconds)
-  useEffect(() => {
-    if (!isAuthorized || !autoRefresh) return;
-    const interval = setInterval(() => {
-      fetchData();
-    }, 10000);
-    return () => clearInterval(interval);
-  }, [isAuthorized, autoRefresh, fetchData]);
 
   // Helper formatting duration
   const formatDuration = (seconds: number) => {
@@ -426,30 +416,15 @@ export default function AdminPortal() {
               {soundEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
             </button>
 
-            {/* Auto refresh toggle */}
-            <button
-              onClick={() => setAutoRefresh(!autoRefresh)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-xs font-medium transition-colors ${
-                autoRefresh
-                  ? "bg-white/80 border-[#1c1815]/20 text-[#1c1815] shadow-xs"
-                  : "bg-white/40 border-[#1c1815]/10 text-[#554741]"
-              }`}
-              title="Toggle 10s auto-refresh"
-            >
-              <RefreshCw
-                className={`w-3.5 h-3.5 ${autoRefresh ? "animate-spin text-[#c85f40]" : ""}`}
-                style={{ animationDuration: "3s" }}
-              />
-              <span className="hidden md:inline">{autoRefresh ? "Auto (10s)" : "Paused"}</span>
-            </button>
-
-            {/* Manual Refresh */}
+            {/* Manual Refresh Button */}
             <button
               onClick={() => fetchData()}
-              className="p-2 rounded-xl bg-white/60 hover:bg-white border border-[#1c1815]/15 text-[#1c1815] transition-colors shadow-xs"
-              title="Refresh now"
+              disabled={loading}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/70 hover:bg-white border border-[#1c1815]/15 text-[#1c1815] text-xs font-medium transition-colors shadow-xs disabled:opacity-50"
+              title="Refresh data manually"
             >
-              <RefreshCw className="w-4 h-4" />
+              <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin text-[#c85f40]" : ""}`} />
+              <span className="hidden md:inline">{loading ? "Refreshing..." : "Refresh"}</span>
             </button>
 
             {/* Logout */}
