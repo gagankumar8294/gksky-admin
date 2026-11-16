@@ -1,6 +1,6 @@
 import mongoose from "mongoose";
 
-const MONGO_URL = process.env.MONGO_URL;
+const MONGO_URL = process.env.MONGO_URL || process.env.MONGODB_URI;
 
 interface MongooseCache {
   conn: typeof mongoose | null;
@@ -19,7 +19,7 @@ if (!global.mongooseCache) {
 
 export async function connectDB(): Promise<typeof mongoose> {
   if (!MONGO_URL) {
-    throw new Error("Please define the MONGO_URL environment variable inside .env.local");
+    throw new Error("Please define MONGO_URL or MONGODB_URI in environment variables");
   }
 
   if (cached.conn) {
